@@ -10,3 +10,9 @@
 # Archivos temporales
 *.log
 *.tmp
+
+# Entornos virtuales Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
