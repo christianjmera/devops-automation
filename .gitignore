@@ -1,0 +1,12 @@
+# Credenciales y claves privadas
+*.pem
+*.key
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Archivos temporales
+*.log
+*.tmp
