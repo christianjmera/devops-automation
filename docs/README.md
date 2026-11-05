@@ -17,7 +17,7 @@ Documentación técnica de la plataforma centralizada de automatización DevOps 
 |---|---|---|
 | [03 - GitHub App](03-github-app.md) | Configuración, permisos e instalación | Completado |
 | [04 - Autenticación GitHub App](04-autenticacion-github-app.md) | JWT, RS256 y tokens de instalación | Completado |
-| [05 - Webhook Receiver](05-webhook-receiver.md) | FastAPI, HMAC y procesamiento de eventos | Implementado y validado |
+| [05 - Webhook Receiver](05-webhook-receiver.md) | FastAPI, HMAC, SQLite, worker y reintentos | Validado localmente; integración real pendiente |
 | `06-publicacion-y-seguridad.md` | HTTPS, URL pública y configuración del webhook | Planificado |
 | `07-integracion-y-pruebas.md` | Integración real y pruebas end-to-end | Planificado |
 
