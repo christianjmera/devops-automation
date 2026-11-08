@@ -1,4 +1,3 @@
-
 name: Central DevOps Pipeline
 
 on:
@@ -29,7 +28,6 @@ jobs:
       - name: Validate dispatch payload
         id: validate
         shell: bash
-
         env:
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           SOURCE_BRANCH: ${{ github.event.client_payload.branch }}
@@ -60,7 +58,6 @@ jobs:
           fi
 
           REPOSITORY_AUTHORIZED=false
-
           IFS=',' read -ra ALLOWED_REPOSITORIES <<< "$ALLOWED_SOURCE_REPOSITORIES"
 
           for allowed_repository in "${ALLOWED_REPOSITORIES[@]}"; do
@@ -78,18 +75,10 @@ jobs:
           fi
 
           case "$SOURCE_BRANCH" in
-            develop)
-              TARGET_ENVIRONMENT="DEV"
-              ;;
-            qa)
-              TARGET_ENVIRONMENT="TEST"
-              ;;
-            uat)
-              TARGET_ENVIRONMENT="UAT"
-              ;;
-            prod)
-              TARGET_ENVIRONMENT="PROD"
-              ;;
+            develop) TARGET_ENVIRONMENT="DEV" ;;
+            qa) TARGET_ENVIRONMENT="TEST" ;;
+            uat) TARGET_ENVIRONMENT="UAT" ;;
+            prod) TARGET_ENVIRONMENT="PROD" ;;
             *)
               echo "ERROR: Unsupported branch"
               exit 1
@@ -141,3 +130,51 @@ jobs:
           echo "Environment: $TARGET_ENVIRONMENT"
           echo "Commit: $COMMIT_SHA"
           echo "======================================"
+
+  checkout-source:
+    name: Generate token and checkout application
+    needs: validate-event
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate temporary GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: christianjmera
+          repositories: devops-java-demo
+          permission-contents: read
+
+      - name: Checkout application source
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ needs.validate-event.outputs.source_repository }}
+          ref: ${{ needs.validate-event.outputs.commit_sha }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: application-source
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify downloaded commit
+        working-directory: application-source
+        env:
+          EXPECTED_COMMIT: ${{ needs.validate-event.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          # Comparar el commit descargado con el commit recibido en el evento.
+          ACTUAL_COMMIT="$(git rev-parse HEAD)"
+
+          if [[ "$ACTUAL_COMMIT" != "$EXPECTED_COMMIT" ]]; then
+            echo "ERROR: Downloaded commit does not match event"
+            exit 1
+          fi
+
+          echo "Application source downloaded successfully"
+          echo "Verified commit: $ACTUAL_COMMIT"
+
+          # Mostrar la estructura inicial del proyecto.
+          echo "Application files:"
+          ls -la
