@@ -109,6 +109,33 @@ class WebhookReceiverTests(unittest.TestCase):
         self.assertEqual(response.json()["status"], "ignored")
         self.assertEqual(response.json()["reason"], "branch_not_allowed")
 
+
+    def test_deleted_branch_is_ignored(self):
+        # Simular un evento push que informa de la eliminación de develop.
+        payload = dict(self.payload)
+        payload["deleted"] = True
+        payload["after"] = "0" * 40
+
+        response = self.post_webhook(
+            payload=payload,
+            delivery_id=str(uuid.uuid4())
+        )
+
+        # Verificar que el evento se ignora correctamente.
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ignored")
+        self.assertEqual(response.json()["reason"], "branch_deleted")
+
+        # Comprobar que el evento no se ha guardado en SQLite.
+        import sqlite3
+        with sqlite3.connect(config.DATABASE_PATH) as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM deliveries"
+            ).fetchone()[0]
+
+        self.assertEqual(count, 0)
+
+
     def test_valid_push_is_accepted(self):
         response = self.post_webhook()
 

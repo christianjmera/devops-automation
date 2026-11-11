@@ -53,13 +53,18 @@ def send_repository_dispatch(token, payload):
             "No se pudo conectar con GitHub API"
         ) from error
 
-
 async def process_delivery(delivery):
     token = await asyncio.to_thread(
         get_installation_token,
         config.GITHUB_APP_ID,
         config.GITHUB_INSTALLATION_ID,
         str(config.GITHUB_PRIVATE_KEY),
+        repositories=[
+            config.CENTRAL_REPOSITORY.split("/", 1)[1]
+        ],
+        permissions={
+            "contents": "write"
+        },
     )
 
     payload = json.loads(delivery["payload_json"])
@@ -74,7 +79,6 @@ async def process_delivery(delivery):
         raise RuntimeError(
             f"Respuesta inesperada de GitHub: HTTP {status}"
         )
-
 
 async def run_worker():
     logger.info("Procesador de eventos iniciado")

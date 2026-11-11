@@ -21,17 +21,20 @@ logging.basicConfig(
 
 logger = logging.getLogger("webhook.receiver")
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Inicializar la base de datos SQLite antes de recibir eventos.
     await asyncio.to_thread(
         database.initialize_database
     )
 
+    # Recuperar entregas que quedaron procesándose
+    # tras una interrupción inesperada del servicio.
     await asyncio.to_thread(
         database.recover_processing
     )
 
+    # Iniciar el worker que procesa los eventos pendientes.
     worker_task = asyncio.create_task(
         run_worker()
     )
@@ -40,21 +43,23 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Solicitar la detención del worker al cerrar la aplicación.
     worker_task.cancel()
 
+    # Esperar a que el worker finalice correctamente.
     with suppress(asyncio.CancelledError):
         await worker_task
 
     logger.info("Webhook receiver detenido")
 
 
+# Crear la aplicación después de definir su ciclo de vida.
 app = FastAPI(
     title="DevOps Automation Webhook Receiver",
     description="Receptor centralizado de eventos GitHub",
     version="2.0.0",
     lifespan=lifespan,
 )
-
 
 @app.get("/health")
 def health():
@@ -200,8 +205,12 @@ async def receive_webhook(request: Request):
             detail="Referencia Git no válida",
         )
 
+    # Extraer el nombre de la rama eliminando el prefijo de Git.
+    # Ejemplo: refs/heads/develop -> develop
     branch = ref.removeprefix("refs/heads/")
 
+    # Comprobar que la rama está autorizada para ejecutar el pipeline.
+    # Las ramas no permitidas se ignoran sin generar errores.
     if branch.lower() not in config.ALLOWED_BRANCHES:
         return {
             "status": "ignored",
@@ -209,8 +218,26 @@ async def receive_webhook(request: Request):
             "branch": branch,
         }
 
+    # Ignorar los eventos que indican que una rama ha sido eliminada.
+    # GitHub puede enviar un SHA compuesto por ceros en estos eventos.
+    # No debemos procesarlos como si fueran nuevos despliegues.
+    if data.get("deleted") is True:
+        logger.info(
+            "Eliminación de rama ignorada: %s",
+            branch,
+        )
+
+        return {
+            "status": "ignored",
+            "reason": "branch_deleted",
+            "branch": branch,
+        }
+
+    # Obtener el SHA del último commit asociado al evento push.
     commit_sha = data.get("after")
 
+    # Validar que el SHA tenga exactamente 40 caracteres hexadecimales.
+    # Esto garantiza que recibimos un identificador de commit válido.
     if (
         not isinstance(commit_sha, str)
         or not re.fullmatch(r"[0-9a-fA-F]{40}", commit_sha)

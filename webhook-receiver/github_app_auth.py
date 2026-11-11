@@ -42,33 +42,57 @@ def generate_jwt(app_id, private_key):
 
     return message + "." + base64url(signature)
 
+def github_request(url, token, method="GET", data=None):
+    body = (
+        json.dumps(data).encode()
+        if data is not None
+        else None
+    )
 
-def github_request(url, token, method="GET"):
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+
     request = urllib.request.Request(
         url,
+        data=body,
         method=method,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
+        headers=headers,
     )
 
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read())
 
-
-def get_installation_token(app_id, installation_id, private_key):
+def get_installation_token(
+    app_id,
+    installation_id,
+    private_key,
+    repositories=None,
+    permissions=None,
+):
     jwt = generate_jwt(app_id, private_key)
+
+    payload = {}
+
+    if repositories:
+        payload["repositories"] = repositories
+
+    if permissions:
+        payload["permissions"] = permissions
 
     response = github_request(
         f"{API_URL}/app/installations/{installation_id}/access_tokens",
         jwt,
         method="POST",
+        data=payload or None,
     )
 
     return response["token"]
-
 
 def main():
     app_id = os.environ["GITHUB_APP_ID"]
